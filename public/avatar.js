@@ -33,8 +33,7 @@ const INK = "#1a1522";
 const PAL = {
   skin: "#f1b896", skinShade: "#c98067", blush: "#e0707a",
   hair: "#262239", hairShade: "#15121f", hairHi: "#5d78c2", hairGlint: "#d7e4ff",
-  blazer: "#1f7c80", blazerShade: "#135559", blazerHi: "#3aa3a2",
-  blouse: "#f4e8d2", blouseShade: "#cdb896",
+  knit: "#eee1c6", knitShade: "#c7ae86", knitLine: "#b89d74", scrunchie: "#e27c93",
   lip: "#b3434f", lipShade: "#7a2733", mouth: "#4a1620", teeth: "#fbf6ec", tongue: "#c9606c",
   sclera: "#fdf8f0", iris: "#2f9c8f", irisDark: "#1b5f58", gold: "#e3b04b", goldShade: "#a8792a",
 };
@@ -826,7 +825,7 @@ export class Avatar {
     if (lw) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); }
   }
 
-  // Hard-edged cel shadow clipped to the shape just traced as `clip`.
+  // Hard-edged cel shadow clipped to a shape.
   cel(clipPts, shadePts, color) {
     const ctx = this.ctx;
     ctx.save();
@@ -836,17 +835,50 @@ export class Avatar {
     ctx.restore();
   }
 
+  // A single ink line through points.
+  line(pts, lw = 1.4, color = INK) {
+    const ctx = this.ctx;
+    ctx.beginPath(); trace(ctx, pts, false);
+    ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+  }
+
+  // Outlined union of shapes: every outline first, then every fill, so
+  // overlapping parts (fingers on a palm, sleeve on an arm) merge into one
+  // silhouette. Items are { poly } (closed smooth shape) or { tube, w }.
+  union(items, color, lw = 2.2) {
+    const ctx = this.ctx;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const pass of [0, 1]) {
+      for (const it of items) {
+        ctx.beginPath();
+        if (it.poly) {
+          trace(ctx, it.poly, true);
+          if (pass === 0) { ctx.strokeStyle = INK; ctx.lineWidth = lw * 2; ctx.stroke(); }
+          else { ctx.fillStyle = it.color || color; ctx.fill(); }
+        } else {
+          trace(ctx, it.tube, false);
+          ctx.strokeStyle = pass === 0 ? INK : it.color || color;
+          ctx.lineWidth = pass === 0 ? it.w + lw * 2 : it.w;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
   // Shift a head-local point by depth parallax (yaw turns, pitch nods).
   hp(x, y, z) {
     return [x + this.p.yaw * 9 * z, y + this.p.pitch * 7 * z];
+  }
+  hpts(list) {
+    return list.map(([x, y, z, c]) => { const [px, py] = this.hp(x, y, z); return c ? [px, py, c] : [px, py]; });
   }
 
   drawChair() {
     const ctx = this.ctx, y = this.bodyY * 0.3;
     ctx.save(); ctx.translate(0, y);
-    this.ink([[218, 380, "c"], [214, 170], [236, 118], [296, 104], [356, 116], [380, 170], [378, 380, "c"]], "#5b2b30", 2.4);
-    this.cel([[218, 380], [214, 170], [236, 118], [296, 104], [356, 116], [380, 170], [378, 380]],
-      [[214, 170], [236, 118], [270, 108], [248, 140], [238, 380], [210, 380]], "#3f1c21");
+    const back = [[218, 380, "c"], [214, 170], [236, 118], [296, 104], [356, 116], [380, 170], [378, 380, "c"]];
+    this.ink(back, "#5b2b30", 2.4);
+    this.cel(back, [[214, 170], [236, 118], [270, 108], [248, 140], [238, 380], [210, 380]], "#3f1c21");
     ctx.strokeStyle = "#7d4145"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(262, 120); ctx.quadraticCurveTo(298, 112, 340, 120); ctx.stroke();
     ctx.fillStyle = "#2c1215";
@@ -865,117 +897,229 @@ export class Avatar {
     ctx.translate(0, -NECK_PIVOT);
   }
 
+  // ------------------------------------------------------------ hair
+  // Hair is built from clumps: a back mass behind the head and neck, a
+  // crown with a side-swept fringe over the forehead, and a loose lock that
+  // frames the near side of the face and swings with her head.
   drawBackHair() {
-    const ctx = this.ctx, L = this.hairLag;
+    const L = this.hairLag;
     this.enterHead();
-    const lx = -L.x * 0.8, ly = -L.y * 0.5;
-    const pts = [[-20, -92], [-62, -74], [-82, -34], [-86, 18], [-80 + lx, 66 + ly], [-92 + lx, 104 + ly, "c"], [-66 + lx, 98 + ly], [-50 + lx * 0.7, 112 + ly, "c"], [-38, 94 + ly * 0.5], [-20, 102 + ly * 0.4, "c"], [-8, 60], [8, -50]];
-    this.ink(pts, PAL.hair, 2.8);
-    this.cel(pts, [[-80, 0], [-86, 18], [-80 + lx, 66 + ly], [-92 + lx, 104 + ly], [-66 + lx, 98 + ly], [-50 + lx * 0.7, 112 + ly], [-38, 94], [-20, 102], [-8, 60], [-34, 10]], PAL.hairShade);
-    // a sweep of highlight down the back of the hair
-    this.cel(pts, [[-72, -54], [-80, -20], [-80, 22], [-77, 44], [-74, 20], [-73, -16], [-66, -48]], PAL.hairHi);
-    ctx.restore();
+    const lx = -L.x * 0.9, ly = -L.y * 0.5;
+    const back = this.hpts([
+      [-6, -106, 0.1], [40, -96, 0.4], [62, -66, 0.5], [64, -24, 0.5], [56, 14, 0.4],
+      [50 + lx * 0.5, 30 + ly, 0.3], [52 + lx * 0.5, 46 + ly, 0.3, "c"], [40, 40, 0.2], [30, 56, 0, "c"], [16, 64, 0],
+      [-10, 104, 0, "c"], [-26, 96, 0], [-40 + lx, 122 + ly, 0, "c"], [-54, 102, 0], [-72 + lx, 126 + ly, 0, "c"],
+      [-80, 100, 0], [-100 + lx, 114 + ly, 0, "c"], [-96, 72, -0.2], [-100, 24, -0.2], [-96, -24, -0.2], [-80, -68, -0.1], [-46, -98, 0],
+    ]);
+    this.ink(back, PAL.hair, 2.8);
+    this.cel(back, [[-110, 10], [-100, 60], [-100, 130], [80, 130], [80, 50], [30, 60], [-40, 70], [-76, 40]], PAL.hairShade);
+    // highlight sweeps down the outer back layer
+    this.cel(back, [[-88, -40, "c"], [-94, -6], [-93, 30], [-90, 50, "c"], [-90, 26], [-89, -6], [-84, -36, "c"]], PAL.hairHi);
+    this.cel(back, [[-62, -84, "c"], [-78, -60], [-84, -30, "c"], [-74, -54]], PAL.hairHi);
+    // clump lines
+    this.line([[-60, -40], [-66, 20], [-62, 80]], 1.4);
+    this.line([[-78, -20], [-82, 40], [-76, 96]], 1.4);
+    this.line([[-40, 20], [-44, 70], [-40, 100]], 1.3);
+    this.line([[52, -30], [54, 0], [50, 30]], 1.3);
+    this.ctx.restore();
   }
 
+  drawFrontHair() {
+    const ctx = this.ctx, L = this.hairLag;
+    const bx = -L.x * 0.5, by = -L.y * 0.4;
+    // crown with a side-swept fringe; the part is on the near side
+    const crown = this.hpts([
+      [-30, -8, 0.1, "c"], [-46, -36, 0.1], [-58, -70, 0.1], [-36, -100, 0.2], [4, -110, 0.3], [42, -100, 0.5], [64, -74, 0.6],
+      [70, -42, 0.7], [64 + bx, -14 + by, 0.8, "c"], [56, -26, 0.8], [48 + bx, -6 + by, 0.9, "c"], [40, -24, 0.9],
+      [30 + bx, -14 + by, 0.9, "c"], [22, -32, 0.8], [10 + bx, -26 + by, 0.7, "c"], [0, -44, 0.6], [-10, -40, 0.4, "c"],
+      [-16, -48, 0.3], [-22, -30, 0.2, "c"],
+    ]);
+    this.ink(crown, PAL.hair, 2.8);
+    // shadow under the fringe and on the near side
+    this.cel(crown, this.hpts([[-70, -60, 0.1], [-44, -40, 0.1], [-22, -30, 0.2], [-10, -40, 0.4], [10, -34, 0.7], [40, -30, 0.9], [80, -40, 0.8], [80, 0, 0.8], [-70, 0, 0.1]]), PAL.hairShade);
+    // highlights follow the sweep: two jagged crescents
+    this.cel(crown, this.hpts([
+      [-40, -78, 0.2, "c"], [-20, -96, 0.3], [16, -98, 0.4], [44, -82, 0.5, "c"], [30, -84, 0.4], [34, -76, 0.5, "c"],
+      [12, -86, 0.4], [4, -80, 0.4, "c"], [-12, -86, 0.3], [-22, -76, 0.3, "c"], [-30, -80, 0.2],
+    ]), PAL.hairHi);
+    this.cel(crown, this.hpts([[10, -62, 0.5, "c"], [36, -66, 0.6], [58, -52, 0.7, "c"], [40, -56, 0.6], [26, -54, 0.6, "c"]]), PAL.hairHi);
+    ctx.fillStyle = PAL.hairGlint;
+    for (const [gx, gy, r] of [[-14, -92, 3], [18, -94, 2.2], [40, -62, 1.6]]) {
+      const [px, py] = this.hp(gx, gy, 0.4);
+      ctx.beginPath(); ctx.moveTo(px - r * 2.2, py); ctx.lineTo(px, py - r); ctx.lineTo(px + r * 2.2, py); ctx.lineTo(px, py + r); ctx.closePath(); ctx.fill();
+    }
+    // clump lines radiating from the part
+    for (const l of [
+      [[-16, -100, 0.3], [8, -80, 0.5], [30, -52, 0.8], [44, -20, 0.9]],
+      [[-8, -104, 0.3], [24, -90, 0.5], [50, -62, 0.7], [60, -30, 0.8]],
+      [[-20, -96, 0.3], [-4, -72, 0.5], [10, -46, 0.7]],
+      [[-24, -96, 0.2], [-40, -72, 0.1], [-42, -44, 0.1]],
+    ]) this.line(this.hpts(l), 1.5);
+  }
+
+  // Loose lock framing the near side of the face; its tip lags behind.
+  drawFaceLock() {
+    const L = this.hairLag;
+    const tx = -L.x * 1.2, ty = -L.y * 0.6;
+    const lock = this.hpts([
+      [-26, -40, 0.1, "c"], [-20, -18, 0.1], [-22, 10, 0.1], [-26 + tx * 0.5, 36 + ty, 0.1], [-24 + tx, 60 + ty, 0.1, "c"],
+      [-34 + tx * 0.6, 40 + ty, 0], [-36, 12, 0], [-38, -16, 0],
+    ]);
+    this.ink(lock, PAL.hair, 2.4);
+    this.cel(lock, this.hpts([[-40, -30, 0.1], [-24, -20, 0.2], [-26, 20, 0.2], [-26 + tx, 70, 0.2], [-44, 70, 0.1]]), PAL.hairShade);
+    this.line(this.hpts([[-28, -20, 0.1], [-29, 10, 0.1], [-30, 34, 0.1]]), 1.2);
+  }
+
+  // ------------------------------------------------------------ body: casual sweater
   drawNeck() {
     this.enterHead();
-    const neck = [[-18, 44, "c"], [16, 58, "c"], [20, 112, "c"], [-24, 114, "c"]];
+    const neck = [[-20, 40, "c"], [18, 56, "c"], [22, 116, "c"], [-26, 118, "c"]];
     this.ink(neck, PAL.skin, 2.4);
-    this.cel(neck, [[-18, 44], [18, 58], [18, 84], [-4, 88], [-24, 80]], PAL.skinShade);
+    this.cel(neck, [[-20, 40], [22, 56], [22, 80], [0, 86], [-26, 78]], PAL.skinShade);
+    // collarbone hint
+    this.line([[-10, 104], [4, 108], [16, 104]], 1.3, PAL.skinShade);
     this.ctx.restore();
   }
 
   drawTorso() {
-    const ctx = this.ctx, y = this.bodyY, P = this.p;
+    const ctx = this.ctx, y = this.bodyY;
     ctx.save();
     ctx.translate(this.headDX * 0.3, y + BODY_DY);
-    // blazer
-    const body = [[282, 218, "c"], [244, 228], [214, 246], [205, 300], [208, 390, "c"], [364, 390, "c"], [368, 300], [360, 244], [334, 226], [312, 214, "c"]];
-    this.ink(body, PAL.blazer, 2.6);
-    this.cel(body, [[214, 246], [205, 300], [208, 390], [248, 390], [240, 300], [252, 250], [270, 232], [282, 218], [244, 228]], PAL.blazerShade);
-    // blouse
-    const blouse = [[283, 219, "c"], [311, 214, "c"], [302, 276, "c"]];
-    this.ink(blouse, PAL.blouse, 2);
-    this.cel(blouse, [[283, 219], [296, 216], [300, 276]], PAL.blouseShade);
-    // necklace
-    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.moveTo(286, 222); ctx.quadraticCurveTo(296, 240, 308, 218); ctx.stroke();
-    ctx.fillStyle = PAL.gold; ctx.beginPath(); ctx.arc(297, 234, 2.4, 0, Math.PI * 2); ctx.fill();
-    // lapels
-    this.ink([[283, 219, "c"], [300, 282, "c"], [284, 300, "c"], [262, 252, "c"], [272, 246, "c"], [266, 232, "c"]], PAL.blazer, 2.2);
-    this.cel([[283, 219], [300, 282], [284, 300], [262, 252], [272, 246], [266, 232]], [[266, 232], [272, 246], [262, 252], [284, 300], [290, 290], [276, 250]], PAL.blazerShade);
-    this.ink([[311, 214, "c"], [302, 280, "c"], [314, 294, "c"], [330, 250, "c"], [322, 244, "c"], [328, 228, "c"]], PAL.blazer, 2.2);
-    // lapel highlight and a button
-    ctx.strokeStyle = PAL.blazerHi; ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.moveTo(314, 232); ctx.lineTo(306, 272); ctx.stroke();
-    this.ink([[296, 318], [301, 322], [296, 326], [291, 322]], "#0e3b3e", 1.4);
+    const body = [[270, 226, "c"], [238, 236], [210, 256], [198, 312], [202, 392, "c"], [368, 392, "c"], [372, 308], [362, 252], [336, 230], [320, 222, "c"]];
+    this.ink(body, PAL.knit, 2.6);
+    this.cel(body, [[210, 256], [198, 312], [202, 392], [248, 392], [238, 320], [246, 268], [262, 244], [270, 226], [238, 236]], PAL.knitShade);
+    // cable-knit columns
+    ctx.save();
+    ctx.beginPath(); trace(ctx, body, true); ctx.clip();
+    for (const [x0, drift] of [[262, -2], [300, 0], [338, 3]]) {
+      ctx.strokeStyle = PAL.knitLine; ctx.lineWidth = 1.6;
+      for (let yy = 262; yy < 392; yy += 12) {
+        const x = x0 + drift * ((yy - 262) / 60);
+        ctx.beginPath(); ctx.moveTo(x - 4, yy); ctx.bezierCurveTo(x + 5, yy + 3, x + 5, yy + 7, x - 4, yy + 11); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x + 4, yy); ctx.bezierCurveTo(x - 5, yy + 3, x - 5, yy + 7, x + 4, yy + 11); ctx.stroke();
+      }
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0 - 9, 256); ctx.lineTo(x0 - 9 + drift * 2, 392); ctx.moveTo(x0 + 9, 256); ctx.lineTo(x0 + 9 + drift * 2, 392); ctx.stroke();
+    }
+    ctx.restore();
+    // ribbed crew neck
+    const collar = [[268, 228, "c"], [296, 244], [322, 224, "c"], [326, 216], [296, 232], [264, 220]];
+    this.ink(collar, PAL.knit, 2.2);
+    this.cel(collar, [[264, 220], [296, 232], [296, 244], [268, 228]], PAL.knitShade);
+    ctx.strokeStyle = PAL.knitLine; ctx.lineWidth = 1.2;
+    for (let i = 0; i <= 10; i++) {
+      const u = i / 10, x = lerp(268, 322, u), yTop = 222 + Math.sin(u * Math.PI) * 10, yBot = 228 + Math.sin(u * Math.PI) * 14;
+      ctx.beginPath(); ctx.moveTo(x, yTop); ctx.lineTo(x, yBot); ctx.stroke();
+    }
+    // dropped shoulder seam
+    this.line([[240, 238], [226, 262], [220, 290]], 1.4, PAL.knitLine);
+    this.line([[346, 240], [356, 264]], 1.4, PAL.knitLine);
     ctx.restore();
   }
 
   drawFarUpperArm() {
     const ctx = this.ctx, y = this.bodyY;
     ctx.save(); ctx.translate(this.headDX * 0.3, y + BODY_DY);
-    this.tube([[352, 250], [366, 344]], 30, PAL.blazerShade);
+    this.union([{ tube: [[356, 262], [368, 340]], w: 34 }], PAL.knitShade);
     ctx.restore();
-  }
-
-  // Thick outlined limb along a polyline.
-  tube(pts, w, color) {
-    const ctx = this.ctx;
-    ctx.lineJoin = "round"; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-    ctx.strokeStyle = INK; ctx.lineWidth = w + 5; ctx.stroke();
-    ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
   }
 
   drawArms(t) {
     const ctx = this.ctx, P = this.p, y = this.bodyY;
     const typing = clamp(P.typing, 0, 1);
-    const tap = (ph) => (this.reduced ? 0 : Math.max(0, Math.sin(t * 17 + ph)) * 2.2 * typing);
     ctx.save(); ctx.translate(this.headDX * 0.3, y * 0.5);
 
-    // far forearm and hand on the keyboard
-    const fe = [366, 358], fw = [398, 372 - tap(1.7)];
-    this.tube([[358, 330], fe], 28, PAL.blazerShade);
-    this.tube([fe, fw], 22, PAL.blazerShade);
-    this.hand(fw[0], fw[1], 0.1, PAL.skinShade, false);
+    // far arm: pushed-up sleeve, bare forearm, hand on the keyboard
+    const fe = [370, 350], fc = [380, 358], fw = [392, 366];
+    this.union([{ tube: [fc, fw], w: 15, color: PAL.skinShade }], PAL.skinShade);
+    this.union([{ tube: [[362, 326], fe, fc], w: 30 }, { tube: [fc, [386, 363]], w: 32 }], PAL.knitShade);
+    this.hand(fw[0], fw[1], 0.3, t, typing, 2.1, PAL.skinShade, 1.45);
 
     // near arm: shoulder → elbow on the desk → wrist; lifts to gesture
     const lift = clamp(P.arm, 0, 1);
-    const sh = [214, 252 + BODY_DY], el = [224 + lift * 8, 366 - lift * 6];
-    const rest = Math.atan2(376 - 366, 322 - 224); // pointing at the keyboard
-    const ang = lerp(rest, -1.15, lift);
-    const len = 96 - lift * 16;
-    const wr = [el[0] + Math.cos(ang) * len, el[1] + Math.sin(ang) * len - tap(0)];
-    this.tube([sh, el], 32, PAL.blazer);
-    // shadow side of the upper arm
+    const sh = [212, 268 + BODY_DY], el = [226 + lift * 8, 364 - lift * 6];
+    const rest = Math.atan2(378 - 364, 318 - 226);
+    const ang = lerp(rest, -1.2, lift);
+    const len = 82 - lift * 12;
+    const dir = [Math.cos(ang), Math.sin(ang)];
+    const cuff = [el[0] + dir[0] * len * 0.38, el[1] + dir[1] * len * 0.38];
+    const wr = [el[0] + dir[0] * len, el[1] + dir[1] * len];
+    // bare forearm (behind the sleeve), then the sweater sleeve and its bunched cuff
+    this.union([{ tube: [cuff, [wr[0] - dir[0] * 2, wr[1] - dir[1] * 2]], w: 17 }], PAL.skin);
+    this.cel([[cuff[0] - 9, cuff[1] + 20], [wr[0] - 9, wr[1] + 20], [wr[0] + 9, wr[1] + 2], [cuff[0] + 9, cuff[1] + 2]],
+      [[cuff[0] - 12, cuff[1] + 30], [wr[0] - 12, wr[1] + 30], [wr[0] + 4, wr[1] + 7], [cuff[0] + 4, cuff[1] + 7]], PAL.skinShade);
+    // scrunchie on the wrist, very 90s
+    const sc = [wr[0] - dir[0] * 16, wr[1] - dir[1] * 16];
+    this.union([{ tube: [[sc[0] - dir[0] * 2.5, sc[1] - dir[1] * 2.5], [sc[0] + dir[0] * 2.5, sc[1] + dir[1] * 2.5]], w: 19 }], PAL.scrunchie);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1;
+    for (const k of [-4, 0, 4]) {
+      const nx = -dir[1], ny = dir[0];
+      ctx.beginPath(); ctx.moveTo(sc[0] + nx * 8 + dir[0] * k * 0.3, sc[1] + ny * 8 + dir[1] * k * 0.3); ctx.lineTo(sc[0] + nx * 3 + dir[0] * k * 0.7, sc[1] + ny * 3 + dir[1] * k * 0.7); ctx.stroke();
+    }
+    this.union([{ tube: [sh, el, cuff], w: 30 }, { tube: [[cuff[0] - dir[0] * 4, cuff[1] - dir[1] * 4], [cuff[0] + dir[0] * 3, cuff[1] + dir[1] * 3]], w: 34 }], PAL.knit);
+    // shade on the underside of the sleeve, and cuff ribbing
     ctx.save();
-    ctx.beginPath(); ctx.moveTo(sh[0] - 16, sh[1]); ctx.lineTo(el[0] - 16, el[1]); ctx.lineTo(el[0] - 4, el[1]); ctx.lineTo(sh[0] - 4, sh[1]); ctx.closePath();
-    ctx.fillStyle = PAL.blazerShade; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sh[0] - 15, sh[1]); ctx.lineTo(el[0] - 15, el[1]); ctx.lineTo(el[0] - 3, el[1] + 4); ctx.lineTo(sh[0] - 3, sh[1]); ctx.closePath();
+    ctx.fillStyle = PAL.knitShade; ctx.fill();
     ctx.restore();
-    this.tube([el, wr], 26, PAL.blazer);
-    // cuff
-    const cx = wr[0] - Math.cos(ang) * 5, cy = wr[1] - Math.sin(ang) * 5;
-    this.tube([[cx, cy], [wr[0] - Math.cos(ang) * 1, wr[1] - Math.sin(ang) * 1]], 16, PAL.blouse);
-    this.hand(wr[0], wr[1], ang, PAL.skin, lift > 0.5);
+    ctx.strokeStyle = PAL.knitLine; ctx.lineWidth = 1.2;
+    for (const k of [-2, 1]) {
+      const cx = cuff[0] + dir[0] * k, cy = cuff[1] + dir[1] * k, nx = -dir[1], ny = dir[0];
+      ctx.beginPath(); ctx.moveTo(cx + nx * 17, cy + ny * 17); ctx.lineTo(cx - nx * 17, cy - ny * 17); ctx.stroke();
+    }
+    this.line([[el[0] - 6, el[1] - 26], [el[0] + 4, el[1] - 10]], 1.3, PAL.knitLine);
+
+    if (lift > 0.5) this.openHand(wr[0], wr[1], ang + Math.PI / 2 + 0.25);
+    else this.hand(wr[0], wr[1], ang, t, typing, 0, PAL.skin);
     ctx.restore();
   }
 
-  hand(x, y, ang, color, open) {
+  // Resting hand, palm down on the keyboard; fingers tap while she types.
+  hand(x, y, ang, t, typing, phase, color, k = 1.65) {
     const ctx = this.ctx;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-    if (open) {
-      // open palm, fingers up, facing the viewer
-      ctx.rotate(-ang - 0.25);
-      this.ink([[-8, 4], [-10, -8], [-8, -22, "c"], [-4, -22], [-3, -12], [-1, -26, "c"], [3, -26], [4, -13], [6, -24, "c"], [10, -23], [9, -10], [13, -18, "c"], [16, -16], [12, -2], [14, 6, "c"], [20, 2], [22, 6], [12, 16], [0, 16]], color, 2.2);
-    } else {
-      this.ink([[0, -9], [14, -11], [28, -8], [34, -2], [32, 6], [20, 9], [4, 9], [-2, 2]], color, 2.2);
-      ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
-      for (const yy of [-4, 0, 4]) { ctx.beginPath(); ctx.moveTo(22, yy); ctx.lineTo(31, yy + 0.5); ctx.stroke(); }
-      ctx.fillStyle = PAL.skinShade;
-      ctx.beginPath(); ctx.moveTo(4, 9); ctx.lineTo(20, 9); ctx.lineTo(18, 5); ctx.lineTo(4, 5); ctx.fill();
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(k, k);
+    const tap = (i) => (this.reduced ? 0 : Math.max(0, Math.sin(t * 19 + i * 2.1 + phase * 3)) * 2.4 * typing);
+    // back of the hand seen from above and in front; fingers arc down onto the keys
+    const knuckles = [[17, -6.5], [19.5, -2], [19.5, 2.5], [17.5, 6.5]];
+    const lengths = [16, 18.5, 17.5, 13];
+    const fingers = knuckles.map(([kx, ky], i) => {
+      const a = 0.12 + i * 0.1;
+      const mid = [kx + Math.cos(a) * lengths[i] * 0.5, ky + Math.sin(a) * lengths[i] * 0.5 - tap(i) * 0.5];
+      const tip = [kx + Math.cos(a + 0.75) * lengths[i] * 0.95, ky + Math.sin(a + 0.75) * lengths[i] * 0.95 - tap(i)];
+      return { tube: [[kx - 3, ky], mid, tip], w: i === 3 ? 3.8 : 4.4 };
+    });
+    const palm = { poly: [[-3, -7.5], [8, -8.5], [18, -8], [21, -2], [20.5, 5], [17, 8.5], [8, 8.5], [-2, 7]] };
+    const thumb = { tube: [[5, 6.5], [12, 11], [18, 13]], w: 5 };
+    this.union([thumb, palm, ...fingers], color, 1.25);
+    // tendons and finger separations, drawn lightly
+    ctx.strokeStyle = INK; ctx.lineWidth = 0.7; ctx.lineCap = "round";
+    for (let i = 0; i < 3; i++) {
+      const a = knuckles[i], b = knuckles[i + 1];
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      ctx.beginPath(); ctx.moveTo(mx + 1, my); ctx.lineTo(mx + 8, my + 2.5 - (tap(i) + tap(i + 1)) / 3); ctx.stroke();
     }
+    ctx.strokeStyle = color === PAL.skin ? PAL.skinShade : "rgba(0,0,0,0.25)"; ctx.lineWidth = 0.8;
+    for (const [kx, ky] of knuckles.slice(0, 3)) { ctx.beginPath(); ctx.moveTo(4, ky * 0.6); ctx.lineTo(kx - 4, ky); ctx.stroke(); }
+    ctx.fillStyle = PAL.skinShade;
+    ctx.beginPath(); ctx.moveTo(-2, 7); ctx.lineTo(17, 8.5); ctx.lineTo(16, 5); ctx.lineTo(0, 4); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // Open palm raised toward the viewer, fingers spread.
+  openHand(x, y, ang, k = 1.6) {
+    const ctx = this.ctx;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(k, k);
+    const palm = { poly: [[-9, 4], [-10, -9], [-7, -15], [8, -15], [11, -7], [10, 5], [3, 10], [-5, 9]] };
+    const fingers = [
+      { tube: [[-7, -13], [-9, -21], [-10.5, -27]], w: 5 },
+      { tube: [[-2, -14], [-2.5, -24], [-2.5, -31]], w: 5.4 },
+      { tube: [[3, -14], [4.5, -23], [5.5, -30]], w: 5.4 },
+      { tube: [[8, -12], [11, -19], [13, -24]], w: 4.8 },
+      { tube: [[9, 3], [15, -2], [19, -8]], w: 6 },
+    ];
+    this.union([...fingers, palm], PAL.skin, 1.3);
+    this.line([[-6, -2], [0, 1], [7, -3]], 0.7);
+    this.line([[-4, 5], [2, 6]], 0.6);
     ctx.restore();
   }
 
@@ -984,39 +1128,38 @@ export class Avatar {
     const ctx = this.ctx, P = this.p;
     this.enterHead();
 
-    // ear (near side) and earring
     this.drawEar();
 
-    // face
     const chinDrop = clamp(P.open, 0, 1) * 4;
-    const face = [
-      this.hp(20, -54, 0.4), this.hp(38, -32, 0.7), this.hp(45, -8, 0.9), this.hp(41, 2, 0.9), this.hp(46, 14, 0.9),
-      this.hp(43, 34, 0.9), this.hp(37, 52 + chinDrop * 0.5, 0.9), this.hp(31, 66 + chinDrop, 0.9), [18, 73 + chinDrop],
-      [-4, 63 + chinDrop * 0.6], [-26, 40], [-32, 16], [-34, -10], [-26, -40], [-2, -56],
-    ];
+    const face = this.hpts([
+      [20, -62, 0.4], [34, -46, 0.6], [41, -28, 0.8], [43, -14, 0.9], [39, -4, 0.9], [42, 8, 0.95],
+      [41, 22, 0.95], [39, 34, 0.95], [36, 46 + chinDrop * 0.4, 0.95], [33, 56 + chinDrop, 0.95],
+      [27, 64 + chinDrop, 0.9, "c"], [12, 66 + chinDrop, 0.7], [-6, 60 + chinDrop * 0.6, 0.4], [-22, 44, 0.1],
+      [-29, 24, -0.1], [-32, 0, -0.2], [-32, -30, -0.1], [-12, -60, 0.1],
+    ]);
     this.faceShape = face;
     this.ink(face, PAL.skin, 0);
-    // cel shadow on the side away from the monitor light
-    this.cel(face, [[-40, -20], [-14, -14], [-6, 6], [-14, 28], [2, 52], [0, 70], [-30, 60], [-40, 20]], PAL.skinShade);
-    // cast shadow under the fringe
-    this.cel(face, [[-40, -60], [60, -60], [60, -30], [30, -28], [10, -22], [-10, -26], [-40, -20]], PAL.skinShade);
+    // cel shadow on the side away from the monitor light, with a cheekbone notch
+    this.cel(face, this.hpts([[-40, -40, 0], [-20, -40, 0.1], [-15, -12, 0.2], [-10, 12, 0.3], [-19, 24, 0.2], [-8, 44, 0.4], [2, 62, 0.5], [-4, 80, 0.4], [-40, 80, 0]]), PAL.skinShade);
+    // under-jaw shadow line on the far side
+    this.cel(face, this.hpts([[20, 58, 0.9], [34, 52, 0.95], [30, 64, 0.9], [14, 70, 0.7]]), PAL.skinShade);
 
     // monitor rim light on the far contour
     ctx.save();
     ctx.beginPath(); trace(ctx, face, true); ctx.clip();
-    ctx.strokeStyle = `rgba(160,230,255,${0.35 + P.glow * 0.4})`;
-    ctx.lineWidth = 5;
-    ctx.beginPath(); trace(ctx, face.slice(1, 8), false); ctx.stroke();
+    ctx.strokeStyle = `rgba(160,230,255,${0.3 + P.glow * 0.35})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); trace(ctx, face.slice(2, 10), false); ctx.stroke();
     ctx.restore();
 
     // blush: hatched strokes, the 90s way
     if (P.blush > 0.05) {
       ctx.strokeStyle = PAL.blush;
-      ctx.globalAlpha = clamp(P.blush, 0, 1) * 0.8;
-      ctx.lineWidth = 1.6;
-      for (const [bx, by, n] of [[this.hp(-2, 26, 0.6), 0, 3], [this.hp(34, 22, 0.9), 0, 2]].map(([p, _, n]) => [p[0], p[1], n])) {
-        for (let i = 0; i < n; i++) { ctx.beginPath(); ctx.moveTo(bx + i * 5 - 4, by + 4); ctx.lineTo(bx + i * 5, by - 3); ctx.stroke(); }
-      }
+      ctx.globalAlpha = clamp(P.blush, 0, 1) * 0.85;
+      ctx.lineWidth = 1.5; ctx.lineCap = "round";
+      const hatch = ([bx, by], n) => { for (let i = 0; i < n; i++) { ctx.beginPath(); ctx.moveTo(bx + i * 4.5 - 4, by + 4); ctx.lineTo(bx + i * 4.5, by - 3); ctx.stroke(); } };
+      hatch(this.hp(0, 20, 0.5), 3);
+      hatch(this.hp(35, 17, 0.9), 2);
       ctx.globalAlpha = 1;
     }
 
@@ -1025,107 +1168,123 @@ export class Avatar {
     this.drawEyes();
     this.drawBrows();
 
-    // face outline on top so every feature sits inside the ink
-    ctx.beginPath(); trace(ctx, face.slice(0, 11), false);
+    // face outline: far contour, chin and jaw
+    ctx.beginPath(); trace(ctx, face.slice(1, 15), false);
     ctx.strokeStyle = INK; ctx.lineWidth = 2.8; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
 
+    this.drawFaceLock();
     this.drawFrontHair();
     ctx.restore();
   }
 
   drawEar() {
     const ctx = this.ctx;
-    const [ex, ey] = this.hp(-32, 6, -0.6);
-    this.ink([[ex + 2, ey - 16], [ex - 8, ey - 12], [ex - 10, ey + 2], [ex - 6, ey + 14], [ex + 2, ey + 16]], PAL.skin, 2.2);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.moveTo(ex - 1, ey - 9); ctx.quadraticCurveTo(ex - 6, ey, ex - 2, ey + 8); ctx.stroke();
-    // gold hoop, swinging
+    const [ex, ey] = this.hp(-31, 2, -0.6);
+    this.ink([[ex + 2, ey - 15], [ex - 7, ey - 12], [ex - 10, ey + 1], [ex - 6, ey + 13], [ex + 3, ey + 15]], PAL.skin, 2.2);
+    this.line([[ex, ey - 9], [ex - 5, ey], [ex - 1, ey + 8]], 1.3);
+    this.cel([[ex + 2, ey - 15], [ex - 7, ey - 12], [ex - 10, ey + 1], [ex - 6, ey + 13], [ex + 3, ey + 15]], [[ex - 1, ey - 8], [ex - 5, ey], [ex - 1, ey + 8], [ex + 4, ey]], PAL.skinShade);
+    // small gold hoop, swinging
     const a = this.earring.ang;
-    const hx = ex - 2 + Math.sin(a) * 8, hy = ey + 18 + Math.cos(a) * 8;
-    ctx.strokeStyle = INK; ctx.lineWidth = 4.5;
-    ctx.beginPath(); ctx.arc(hx, hy, 7, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2.4;
-    ctx.beginPath(); ctx.arc(hx, hy, 7, 0, Math.PI * 2); ctx.stroke();
+    const hx = ex - 2 + Math.sin(a) * 6, hy = ey + 17 + Math.cos(a) * 6;
+    ctx.strokeStyle = INK; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = PAL.gold; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.stroke();
   }
 
   drawNose() {
     const ctx = this.ctx;
-    const tip = this.hp(51, 26, 1.2), base = this.hp(44, 31, 1.1), bridge = this.hp(40, 4, 1);
-    // skin wedge where the nose breaks the far contour
-    this.ink([bridge, [tip[0] - 1, tip[1] - 4], tip, base, this.hp(38, 28, 1)], PAL.skin, 0);
-    ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    const bridge = this.hp(37, -2, 1), tip = this.hp(47, 19, 1.2), under = this.hp(44, 23, 1.15), base = this.hp(39, 24, 1.05);
+    this.ink([bridge, [tip[0] - 1, tip[1] - 5], tip, under, base, this.hp(36, 18, 1)], PAL.skin, 0);
+    ctx.strokeStyle = INK; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(bridge[0], bridge[1]);
-    ctx.quadraticCurveTo(tip[0] - 2, tip[1] - 8, tip[0], tip[1]);
-    ctx.quadraticCurveTo(tip[0] + 1, tip[1] + 4, base[0], base[1]);
+    ctx.bezierCurveTo(bridge[0] + 4, bridge[1] + 8, tip[0] - 3, tip[1] - 8, tip[0], tip[1]);
+    ctx.quadraticCurveTo(tip[0] + 1.5, tip[1] + 3.5, under[0], under[1]);
     ctx.stroke();
-    const n = this.hp(40, 28, 1);
     ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.moveTo(n[0], n[1]); ctx.quadraticCurveTo(n[0] + 1, n[1] + 3, n[0] + 4, n[1] + 3); ctx.stroke();
-    // shadow under the nose
-    const s = this.hp(42, 33, 1);
+    const n = this.hp(38, 20, 1);
+    ctx.beginPath(); ctx.moveTo(n[0], n[1]); ctx.quadraticCurveTo(n[0] - 1, n[1] + 3.5, n[0] + 3.5, n[1] + 4); ctx.stroke();
+    // shadow under the nose and on the near side of the bridge
+    const s = this.hp(40, 26, 1);
     ctx.fillStyle = PAL.skinShade;
-    ctx.beginPath(); ctx.moveTo(s[0] - 5, s[1]); ctx.lineTo(s[0] + 4, s[1] - 1); ctx.lineTo(s[0], s[1] + 3); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(s[0] - 6, s[1]); ctx.lineTo(s[0] + 5, s[1] - 1); ctx.lineTo(s[0], s[1] + 3); ctx.closePath(); ctx.fill();
+    const b2 = this.hp(33, 6, 0.95);
+    ctx.beginPath(); ctx.moveTo(b2[0], b2[1] - 4); ctx.quadraticCurveTo(b2[0] - 2, b2[1] + 6, b2[0] + 1, b2[1] + 12); ctx.lineTo(b2[0] + 3, b2[1] + 10); ctx.quadraticCurveTo(b2[0] + 1, b2[1] + 4, b2[0] + 2, b2[1] - 4); ctx.fill();
   }
 
   drawEyes() {
     const P = this.p;
-    this.eye(this.hp(6, 4, 0.7), 1.12, this.blinkNear, P.gazeX);
-    this.eye(this.hp(37, 2, 0.9), 0.5, this.blinkFar, P.gazeX);
+    this.eye(this.hp(4, -3, 0.7), 1, this.blinkNear, P.gazeX, true);
+    this.eye(this.hp(33, -4, 0.9), 0.52, this.blinkFar, P.gazeX, false);
   }
 
   // One eye in local space: sx is horizontal foreshortening (far eye ≈ 0.5).
-  eye([x, y], sx, blink, gaze) {
+  eye([x, y], sx, blink, gaze, near) {
     const ctx = this.ctx, P = this.p;
     const squint = clamp(P.squint, 0, 1);
     const droop = clamp(P.droop + Math.max(0, P.gazeY) * 0.3 - Math.max(0, -P.gazeY) * 0.1, 0, 1);
     const c = clamp(droop + (1 - droop) * blink, 0, 1);
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(sx, sx > 1 ? sx : 1);
-    // eyeshadow between lash line and crease
-    ctx.fillStyle = "rgba(122, 86, 150, 0.45)";
-    ctx.beginPath(); ctx.moveTo(-16, -2); ctx.quadraticCurveTo(-6, -17, 12, -8); ctx.quadraticCurveTo(0, -9 - (1 - c) * 2, -16, -2); ctx.fill();
-    // almond: outer corner at -14 (screen left), inner corner at +13
-    const shape = [[-14, -1, "c"], [-6, -8], [5, -8], [13, 1, "c"], [4, 6], [-6, 5]];
+    ctx.scale(sx, 1);
+    // eyeshadow, crease to lash line
+    ctx.fillStyle = "rgba(130, 90, 150, 0.4)";
+    ctx.beginPath(); ctx.moveTo(-15, -1); ctx.quadraticCurveTo(-4, -18, 13, -6); ctx.quadraticCurveTo(0, -8 - (1 - c) * 3, -15, -1); ctx.fill();
+    // almond: outer corner at -15 (screen left), inner corner at +13
+    const shape = [[-15, -1, "c"], [-7, -9], [5, -9], [13, 1, "c"], [5, 6], [-6, 5]];
     ctx.beginPath(); trace(ctx, shape, true);
     ctx.fillStyle = PAL.sclera; ctx.fill();
     ctx.save(); ctx.clip();
-    // iris toward where she's looking (-1 viewer … +1 monitor)
-    const ix = gaze * 5.5 / Math.max(sx, 0.6), iy = P.gazeY * 2.5;
+    const ix = clamp(gaze * 5.5 / Math.max(sx, 0.6), -8, 8), iy = P.gazeY * 2.5 - 0.5;
     ctx.fillStyle = PAL.iris;
-    ctx.beginPath(); ctx.ellipse(ix, iy, 5, 5.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ix, iy, 5.6, 6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = PAL.irisDark;
-    ctx.beginPath(); ctx.ellipse(ix, iy - 1.5, 5, 3, 0, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ix, iy - 1.6, 5.6, 3.6, 0, Math.PI, 0); ctx.fill();
+    ctx.strokeStyle = PAL.irisDark; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(ix, iy, 5.6, 6, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = INK;
-    ctx.beginPath(); ctx.ellipse(ix, iy, 2.3 * P.pupil, 2.6 * P.pupil, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ix, iy, 2.4 * P.pupil, 2.8 * P.pupil, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.ellipse(ix - 1.6, iy - 2.2, 1.5, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ix - 2, iy - 2.4, 1.7, 1.3, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ix + 2.2, iy + 2.4, 0.8, 0, Math.PI * 2); ctx.fill();
+    // upper lid shadow on the eyeball
+    ctx.fillStyle = "rgba(90,60,80,0.25)";
+    ctx.beginPath(); ctx.ellipse(0, -9, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
     // lids
-    const edge = lerp(-10, 5, c);
+    const edge = lerp(-11, 5, c);
     ctx.fillStyle = PAL.skin;
-    ctx.beginPath(); ctx.moveTo(-20, -20); ctx.lineTo(20, -20); ctx.lineTo(20, edge + 3);
-    ctx.quadraticCurveTo(0, edge - 5 * (1 - c) - squint * 4 * c, -20, edge + 2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-20, -22); ctx.lineTo(20, -22); ctx.lineTo(20, edge + 3);
+    ctx.quadraticCurveTo(0, edge - 6 * (1 - c) - squint * 4 * c, -20, edge + 2); ctx.closePath(); ctx.fill();
     const lo = lerp(8, 1, squint * (1 - c * 0.5));
     ctx.beginPath(); ctx.moveTo(-20, 20); ctx.lineTo(20, 20); ctx.lineTo(20, lo); ctx.quadraticCurveTo(0, lo + 3 * (1 - squint), -20, lo); ctx.closePath(); ctx.fill();
     ctx.restore();
 
-    // upper lash line: heavy ink with a sharp outer flick
-    const ly = (u) => { const q = (u + 14) / 27; const top = lerp(-8, -1, c); return (1 - q) * (1 - q) * (lerp(-1, 1, c)) + 2 * q * (1 - q) * (top - 2 - squint * 3 * c) + q * q * lerp(1, 2, c); };
+    // upper lash line: heavy ink, thicker toward the outer corner
+    const top = lerp(-9, -1, c) - squint * 3 * c;
+    const ly = (u) => { const q = (u + 15) / 28; return (1 - q) * (1 - q) * lerp(-1, 1, c) + 2 * q * (1 - q) * (top - 2) + q * q * lerp(1, 2, c); };
     ctx.beginPath();
-    ctx.moveTo(-19, ly(-14) - 5);
-    for (let u = -14; u <= 13; u += 3) ctx.lineTo(u, ly(u) - 1.2);
-    ctx.lineTo(13, ly(13) + 1);
-    for (let u = 13; u >= -14; u -= 3) ctx.lineTo(u, ly(u) + 1.4);
+    ctx.moveTo(-15, ly(-15) - 1);
+    for (let u = -15; u <= 13; u += 2) ctx.lineTo(u, ly(u) - 1.5);
+    ctx.lineTo(13, ly(13));
+    for (let u = 13; u >= -15; u -= 2) ctx.lineTo(u, ly(u) + 1.2 + (u < -4 ? (-4 - u) * 0.12 : 0));
     ctx.closePath();
     ctx.fillStyle = INK; ctx.fill();
-    // lower lid line on the outer half
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(-13, lo - 3); ctx.quadraticCurveTo(-6, lo + 2, 2, lo + 1); ctx.stroke();
+    // lashes: three sharp flicks off the outer corner
+    for (const [u, len, a] of [[-15, 7, -2.6], [-12, 6, -2.3], [-8.5, 4.5, -2.05]]) {
+      const by = ly(u);
+      ctx.beginPath(); ctx.moveTo(u + 1.2, by - 0.5); ctx.lineTo(u + Math.cos(a) * len, by + Math.sin(a) * len * (1 - c * 0.6)); ctx.lineTo(u - 0.6, by + 1); ctx.closePath(); ctx.fill();
+    }
+    // lower lid line with a small outer lash
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.3; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-14, lo - 3); ctx.quadraticCurveTo(-6, lo + 2, 3, lo + 1); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-11, lo - 0.5); ctx.lineTo(-13, lo + 2); ctx.stroke();
     // crease
     if (c < 0.8) {
-      ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(-10, -11 - (1 - c) * 1); ctx.quadraticCurveTo(0, -14, 10, -9); ctx.stroke();
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(-12, -12 + c * 4); ctx.quadraticCurveTo(0, -16 + c * 5, 11, -10 + c * 4); ctx.stroke();
     }
     ctx.restore();
   }
@@ -1134,31 +1293,38 @@ export class Avatar {
     const P = this.p, ctx = this.ctx;
     const brow = ([x, y], sx, raise) => {
       ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1);
-      const inY = -raise - P.tilt + P.furrow * 2.5, outY = -raise + 2 + P.tilt * 0.4, mid = -raise - 5 + P.furrow;
-      const inX = 13 - P.furrow * 1.5;
+      const inY = -raise - P.tilt + P.furrow * 2.5, outY = -raise + 3 + P.tilt * 0.4, mid = -raise - 6 + P.furrow;
+      const inX = 12 - P.furrow * 1.5;
       ctx.beginPath();
-      ctx.moveTo(inX, inY + 2);
-      ctx.quadraticCurveTo(0, mid - 3, -17, outY);
-      ctx.quadraticCurveTo(-2, mid + 1, inX, inY - 1.5);
+      ctx.moveTo(inX, inY + 1.8);
+      ctx.quadraticCurveTo(-2, mid - 3.2, -17, outY);
+      ctx.quadraticCurveTo(-3, mid + 0.6, inX, inY - 1.6);
       ctx.closePath();
       ctx.fillStyle = INK; ctx.fill();
       ctx.restore();
     };
-    brow(this.hp(4, -12, 0.75), 1, P.browL);
-    brow(this.hp(38, -12, 0.9), 0.45, P.browR);
+    brow(this.hp(3, -19, 0.75), 1, P.browL);
+    brow(this.hp(34, -20, 0.9), 0.5, P.browR);
   }
 
   drawMouth() {
     const ctx = this.ctx, P = this.p;
-    const [mx, my] = this.hp(30, 47, 1);
+    const [mx, my] = this.hp(28, 38, 1);
     const open = clamp(P.open, 0, 1), wide = clamp(P.wide, -1, 1);
     const press = clamp(P.press, 0, 1), bite = clamp(P.bite, 0, 1);
     const round = Math.max(0, -wide);
-    const nearX = -11 - wide * 3 + round * 2, farX = 10 + wide * 1.5 - round * 2;
+    const nearX = -11 - wide * 3 + round * 2, farX = 9 + wide * 1.5 - round * 2;
     const nearY = -P.smileL * 4, farY = -P.smileR * 3.5;
     const top = -1 - open * (2 + round * 2);
     const bot = 1 + open * (11 + round * 2);
+    const closedMid = 1.2 + (P.smileL + P.smileR) * 1.8 - press;
     ctx.save(); ctx.translate(mx, my);
+    const lipTop = [[nearX, nearY, "c"], [-6, top - 3.2], [-1.5, top - 4.2], [0.5, top - 3.2], [3, top - 4.6], [farX, farY, "c"]];
+    // upper lip
+    ctx.beginPath(); trace(ctx, lipTop, false);
+    if (open > 0.05) ctx.quadraticCurveTo(0, top, nearX, nearY);
+    else ctx.quadraticCurveTo(0, closedMid, nearX, nearY);
+    ctx.fillStyle = PAL.lip; ctx.fill();
     if (open > 0.05) {
       const inner = [[nearX, nearY, "c"], [0, top - round], [farX, farY, "c"], [1, bot]];
       ctx.beginPath(); trace(ctx, inner, true);
@@ -1167,65 +1333,37 @@ export class Avatar {
       ctx.fillStyle = PAL.teeth; ctx.fillRect(-14, top - 3, 28, clamp(open * 6, 1.5, 4.5) + 2);
       if (open > 0.35) { ctx.fillStyle = PAL.tongue; ctx.beginPath(); ctx.ellipse(1, bot, 8, open * 6, 0, 0, Math.PI * 2); ctx.fill(); }
       ctx.restore();
-      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.lineJoin = "round";
-      ctx.beginPath(); trace(ctx, inner, true); ctx.stroke();
-    } else {
-      // closed: one confident ink line, pressed lips go thinner
-      ctx.strokeStyle = INK; ctx.lineWidth = 2.2 - press * 0.6; ctx.lineCap = "round";
-      ctx.beginPath(); ctx.moveTo(nearX, nearY);
-      ctx.quadraticCurveTo(0, 1.5 + (P.smileL + P.smileR) * 1.8 - press, farX, farY);
-      ctx.stroke();
     }
-    // lips: colour on both lips on the upper lip and a lower-lip shadow stroke
+    // lower lip: fuller, with a shadow under it and a highlight
+    const lb = open > 0.05 ? bot : closedMid;
     ctx.fillStyle = PAL.lip;
-    ctx.beginPath(); ctx.moveTo(nearX + 1, nearY - 0.5); ctx.quadraticCurveTo(-4, top - 5, 0, top - 3); ctx.quadraticCurveTo(3, top - 5.5, farX - 1, farY - 0.5); ctx.quadraticCurveTo(0, top - 0.5, nearX + 1, nearY - 0.5); ctx.fill();
-    const lb = open > 0.05 ? bot : 1.5 + (P.smileL + P.smileR) * 1.8;
-    ctx.beginPath(); ctx.moveTo(nearX + 3, nearY + 0.5); ctx.quadraticCurveTo(0, lb + 6 - bite * 3, farX - 2, farY + 0.5); ctx.quadraticCurveTo(0, lb + 1, nearX + 3, nearY + 0.5); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.45)";
-    ctx.beginPath(); ctx.ellipse(1, lb + 3.2 - bite * 2, 3, 0.9, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = PAL.lipShade; ctx.lineWidth = 1.8 - bite;
-    ctx.beginPath(); ctx.moveTo(-5, bot + 5 - bite * 3); ctx.quadraticCurveTo(0, bot + 6.5 - bite * 3, 5, bot + 4.5 - bite * 3); ctx.stroke();
-    // smile lines at the corners
+    ctx.beginPath(); ctx.moveTo(nearX + 2, nearY + 0.6);
+    ctx.bezierCurveTo(-5, lb + 7 - bite * 3, 4, lb + 7 - bite * 3, farX - 1.5, farY + 0.6);
+    ctx.quadraticCurveTo(0, lb + 0.5, nearX + 2, nearY + 0.6); ctx.fill();
+    ctx.fillStyle = PAL.lipShade;
+    ctx.beginPath(); ctx.moveTo(nearX + 3, nearY + 1); ctx.quadraticCurveTo(-3, lb + 5.5 - bite * 3, -2, lb + 6.5 - bite * 3); ctx.quadraticCurveTo(-6, lb + 3, nearX + 3, nearY + 1); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.beginPath(); ctx.ellipse(1.5, lb + 3.4 - bite * 2, 2.8, 0.9, 0, 0, Math.PI * 2); ctx.fill();
+    // ink: the parting line, and a short stroke under the lower lip
+    ctx.strokeStyle = INK; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    if (open > 0.05) {
+      ctx.lineWidth = 1.9;
+      ctx.beginPath(); trace(ctx, [[nearX, nearY, "c"], [0, top - round], [farX, farY, "c"], [1, bot]], true); ctx.stroke();
+    } else {
+      ctx.lineWidth = 2.1 - press * 0.5;
+      ctx.beginPath(); ctx.moveTo(nearX - 0.5, nearY - 0.3); ctx.quadraticCurveTo(0, closedMid, farX, farY); ctx.stroke();
+    }
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(-4, lb + 9 - bite * 3); ctx.quadraticCurveTo(0, lb + 10 - bite * 3, 4, lb + 8.5 - bite * 3); ctx.stroke();
     if (P.smileL > 0.5) {
-      ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
-      ctx.beginPath(); ctx.moveTo(nearX - 2, nearY - 3); ctx.quadraticCurveTo(nearX - 4, nearY, nearX - 2, nearY + 3); ctx.stroke();
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(nearX - 2, nearY - 3); ctx.quadraticCurveTo(nearX - 4.5, nearY, nearX - 2, nearY + 3.5); ctx.stroke();
     }
     ctx.restore();
-    // chin shadow
-    const [cx, cy] = this.hp(26, 60 + open * 4, 0.9);
+    // shadow in the chin dimple
+    const [cx, cy] = this.hp(25, 52 + open * 4, 0.95);
     ctx.fillStyle = PAL.skinShade;
-    ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.quadraticCurveTo(cx, cy + 4, cx + 7, cy - 1); ctx.quadraticCurveTo(cx, cy + 1.5, cx - 8, cy); ctx.fill();
-  }
-
-  drawFrontHair() {
-    const ctx = this.ctx, L = this.hairLag;
-    const bx = -L.x * 0.5, by = -L.y * 0.4;
-    const crown = [
-      [-26, -12, "c"], [-44, -38], [-62, -64], [-42, -94], [0, -104], [42, -90], [60, -62], [62, -36],
-      [58 + bx, -12 + by, "c"], [48, -26], [40 + bx, -10 + by, "c"], [30, -28], [16 + bx, -18 + by, "c"],
-      [4, -34], [-10, -26, "c"], [-18, -26], [-22, -16, "c"],
-    ].map(([x, y, c]) => { const [px, py] = this.hp(x, y, x > 0 ? 0.5 : 0.1); return c ? [px, py, c] : [px, py]; });
-    this.ink(crown, PAL.hair, 2.8);
-    // shadow under the crown and at the back
-    this.cel(crown, [[-70, -44], [-44, -34], [-22, -12], [-12, -30], [4, -38], [30, -32], [70, -40], [70, 0], [-70, 0]], PAL.hairShade);
-    // the classic 90s highlight: a jagged band of blue with white glints
-    ctx.save();
-    ctx.beginPath(); trace(ctx, crown, true); ctx.clip();
-    const band = [[-52, -56, "c"], [-32, -82], [6, -90], [44, -72, "c"], [34, -68], [40, -60, "c"], [18, -74], [6, -70, "c"], [-8, -76], [-20, -66, "c"], [-30, -70], [-46, -48, "c"]];
-    ctx.beginPath(); trace(ctx, band.map(([x, y, c]) => { const [px, py] = this.hp(x, y, 0.3); return c ? [px, py, c] : [px, py]; }), true);
-    ctx.fillStyle = PAL.hairHi; ctx.fill();
-    ctx.fillStyle = PAL.hairGlint;
-    for (const [gx, gy, r] of [[-24, -80, 3], [10, -86, 2], [26, -78, 1.4]]) {
-      const [px, py] = this.hp(gx, gy, 0.3);
-      ctx.beginPath(); ctx.moveTo(px - r * 2, py); ctx.lineTo(px, py - r); ctx.lineTo(px + r * 2, py); ctx.lineTo(px, py + r); ctx.closePath(); ctx.fill();
-    }
-    // strand lines
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.4;
-    for (const [a, b, c] of [[[-36, -50], [-12, -62], [12, -48]], [[14, -60], [36, -60], [52, -40]], [[-46, -24], [-40, -44], [-26, -56]], [[20, -40], [34, -40], [44, -22]]]) {
-      const [p, q, r] = [a, b, c].map(([x, y]) => this.hp(x, y, 0.3));
-      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.quadraticCurveTo(q[0], q[1], r[0], r[1]); ctx.stroke();
-    }
-    ctx.restore();
+    ctx.beginPath(); ctx.moveTo(cx - 7, cy); ctx.quadraticCurveTo(cx, cy + 3.5, cx + 6, cy - 1); ctx.quadraticCurveTo(cx, cy + 1.2, cx - 7, cy); ctx.fill();
   }
 
   // ------------------------------------------------------------ overlays
