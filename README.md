@@ -1,4 +1,4 @@
-# Claude Companion
+# Aria
 
 An animated character you talk to by voice or text. She's a front end for Claude, and through Claude she can reach your connected tools (Gmail, Calendar, Notion, GitHub and anything else that runs an MCP server) plus web search.
 
@@ -71,7 +71,7 @@ This app can act on your email, calendar and documents, so treat it like a logge
 ```
 Browser (public/)                          server.js                         Claude API
 ┌─────────────────────────┐   POST /api/chat   ┌───────────────┐  stream  ┌──────────────────────┐
-│ avatar.js  SVG face      │ ───────────────▶  │ session history│ ───────▶ │ claude-opus-5         │
+│ avatar.js  canvas face   │ ───────────────▶  │ session history│ ───────▶ │ claude-opus-5         │
 │ app.js     mic → text    │ ◀─── SSE ──────── │ MCP config     │ ◀─────── │  + MCP connector ──▶ your MCP servers
 │            text → voice  │  text/tool events │                │          │  + web search         │
 └─────────────────────────┘                    └───────────────┘          └──────────────────────┘

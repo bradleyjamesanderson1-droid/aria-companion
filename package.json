@@ -1,5 +1,5 @@
 {
-  "name": "claude-companion",
+  "name": "aria-companion",
   "version": "1.0.0",
   "description": "Animated voice + text companion that fronts Claude and your MCP-connected tools",
   "main": "server.js",
@@ -10,13 +10,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bradleyjamesanderson1-droid/claude-.git"
+    "url": "git+https://github.com/bradleyjamesanderson1-droid/aria-companion.git"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/bradleyjamesanderson1-droid/claude-/issues"
+    "url": "https://github.com/bradleyjamesanderson1-droid/aria-companion/issues"
   },
-  "homepage": "https://github.com/bradleyjamesanderson1-droid/claude-#readme",
+  "homepage": "https://github.com/bradleyjamesanderson1-droid/aria-companion#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0"
   },
