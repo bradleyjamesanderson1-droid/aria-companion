@@ -2,7 +2,7 @@
 
 An animated character you talk to by voice or text. She's a front end for Claude, and through Claude she can reach your connected tools (Gmail, Calendar, Notion, GitHub and anything else that runs an MCP server) plus web search.
 
-- **Animated face**: an SVG character drawn in code. She breathes, blinks, follows your cursor, looks away while she thinks, and her mouth moves with her voice. Claude picks her expression on every reply (happy, thinking, surprised, concerned, playful).
+- **Her office**: Aria is drawn like a 90s TV cartoon (bold ink outlines, hard-edged cel shading, big dark hair with blue highlights) and sits turned 45° at her desk in a cozy evening office: city view, banker's lamp, bookshelf, a wall clock that shows the real time, steaming coffee and a beige CRT. She blinks, glances between you, her screen and the window, lip-syncs to her voice, types while she thinks and gestures while she talks. Claude picks her expression on every reply.
 - **Voice in and out**: tap the mic, or turn on **Talk mode** for hands-free back-and-forth. She starts speaking as soon as the first sentence arrives. Tap her or press Esc to interrupt.
 - **Text**: the chat panel shows the full conversation and works without voice.
 - **Pomodoro timer**: a focus/break timer under the character. Aria says "Start!" and "Stop!" at every change, with a chime and a one-minute warning. Lengths, the number of sessions before a long break, and auto-start are in the gear menu. In the claude.ai version you can also just ask her ("start a pomodoro", "make breaks ten minutes", "how long is left?").
@@ -78,7 +78,7 @@ Browser (public/)                          server.js                         Cla
 ```
 
 - `server.js`: no framework, one dependency (`@anthropic-ai/sdk`). It keeps each browser tab's history in memory, streams Claude's reply back as server-sent events, and continues automatically when a long tool run pauses.
-- `public/avatar.js`: the character. `setMood()`, `setState()` and `setMouth()` drive everything. Open the console and try `companion.avatar.setMood("playful")`.
+- `public/avatar.js`: the character and her office, drawn on a canvas. `setMood()`, `setState()` and the speech hooks drive everything. Open the console and try `companion.avatar.setMood("playful")`.
 - `public/app.js`: speech recognition, sentence-by-sentence speech, stripping the mood tags, and the chat UI.
 
 ## Ideas for next steps

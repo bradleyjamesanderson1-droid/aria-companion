@@ -3,16 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Companion</title>
+  <title>Aria</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;500&family=Share+Tech+Mono&display=swap" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%23c67b5c'/></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6.5' fill='%232bb3a3' stroke='%2314111c' stroke-width='2'/></svg>" />
 </head>
 <body data-state="idle">
   <main class="app">
     <section class="stage-wrap">
       <header class="top">
         <div>
-          <h1 id="name">Companion</h1>
+          <div class="brand">
+            <h1 id="name">ARIA</h1>
+            <p class="tagline">Your assistant, after hours</p>
+          </div>
           <p id="connectors" class="muted"></p>
         </div>
         <div class="top-actions">
@@ -25,19 +31,21 @@
           </button>
         </div>
       </header>
-      <div id="stage" class="stage" title="Tap to interrupt"></div>
-      <div class="status-row">
-        <span id="status" class="status" aria-live="polite">Ready</span>
-        <span id="tool" class="tool" hidden></span>
+      <div id="stage" class="stage" title="Tap to interrupt">
+        <div class="status-row">
+          <span id="status" class="status" aria-live="polite">Ready</span>
+          <span id="tool" class="tool" hidden></span>
+        </div>
       </div>
       <div id="pomo-slot"></div>
     </section>
 
     <section class="chat">
+      <div class="chat-head">Conversation <small>Replies are read aloud</small></div>
       <div id="log" class="log" aria-live="polite"></div>
       <form id="composer" class="composer">
         <button type="button" id="talk-mode" class="pill" aria-pressed="false" title="Hands-free: keep listening after each reply">Talk mode</button>
-        <textarea id="input" rows="1" placeholder="Message…" autocomplete="off"></textarea>
+        <textarea id="input" rows="1" placeholder="Message Aria…" autocomplete="off" aria-label="Message"></textarea>
         <button type="button" id="mic" class="icon mic" aria-pressed="false" title="Speak" aria-label="Speak">
           <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         </button>
